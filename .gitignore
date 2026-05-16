@@ -1,0 +1,17 @@
+# Dependency (File library yang berat, nanti di-install ulang pakai npm install)
+node_modules/
+
+# Environment Variables (Rahasianya ada di sini!)
+.env
+
+# Sesi WhatsApp (PENTING: Jangan upload ini agar sesi WA tidak dibajak)
+.wwebjs_auth/
+.wwebjs_cache/
+.wwebjs_auth
+.wwebjs_cache
+
+# Logs pada console
+/Logs
+
+# DB
+.db
