@@ -58,12 +58,12 @@ function requireApiKey(req, res, next) {
 const GROQ_API_KEY      = process.env.GROQ_API_KEY;
 const GEMINI_API_KEY    = process.env.GEMINI_API_KEY;
 const ADMIN_WA_NUMBER   = process.env.ADMIN_WA_NUMBER;
-const INTERNAL_API_KEY  = process.env.INTERNAL_API_KEY || 'bimba-secret-key';
+const INTERNAL_API_KEY  = process.env.INTERNAL_API_KEY;
 const WA_GATEWAY_URL    = 'http://127.0.0.1:3002/send-direct';
 
-const BIMBA_NAMA_REKENING = process.env.BIMBA_NAMA_REKENING || 'Bimba AIUEO';
-const BIMBA_NO_REKENING   = process.env.BIMBA_NO_REKENING   || '1234567890';
-const BIMBA_NAMA_BANK     = process.env.BIMBA_NAMA_BANK     || 'BCA';
+const BIMBA_NAMA_REKENING = process.env.BIMBA_NAMA_REKENING;
+const BIMBA_NO_REKENING   = process.env.BIMBA_NO_REKENING;
+const BIMBA_NAMA_BANK     = process.env.BIMBA_NAMA_BANK;
 
 console.log('============================================================');
 console.log(' BIMBA ADMIN BOT — CORE SERVER');
@@ -85,11 +85,11 @@ if (!GEMINI_API_KEY) console.warn('[CONFIG] ⚠️  GEMINI_API_KEY kosong — ti
 // DATABASE POSTGRESQL
 // ============================================================
 const pool = new Pool({
-    host:                    process.env.PG_HOST     || 'localhost',
-    port:                    process.env.PG_PORT     || 5432,
-    database:                process.env.PG_DATABASE || 'bimba_bot',
-    user:                    process.env.PG_USER     || 'postgres',
-    password:                process.env.PG_PASSWORD || '',
+    host:                    process.env.PG_HOST,
+    port:                    process.env.PG_PORT,
+    database:                process.env.PG_DATABASE,
+    user:                    process.env.PG_USER,
+    password:                process.env.PG_PASSWORD,
     max:                     10,
     idleTimeoutMillis:       30000,
     connectionTimeoutMillis: 5000,
