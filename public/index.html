@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Bimba Admin Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-900:#0f2318;--green-800:#1a3828;--green-700:#1e4530;--green-600:#25573c;
+  --green-500:#2d6b4a;--green-400:#3a8a5c;--green-100:#e8f5ed;--green-50:#f2faf5;
+  --amber:#f59e0b;--amber-light:#fef3c7;--amber-dark:#b45309;
+  --red:#ef4444;--red-light:#fef2f2;
+  --blue:#3b82f6;--blue-light:#eff6ff;
+  --bg:#f7f4f0;--surface:#ffffff;--surface-2:#faf8f5;
+  --border:#e8e3dd;--border-dark:#d5cfc7;
+  --text:#1a1612;--text-2:#5c5248;--text-3:#9c8f85;
+  --font:'Plus Jakarta Sans',sans-serif;--mono:'DM Mono',monospace;
+  --radius:12px;--radius-sm:8px;--radius-lg:16px;
+  --shadow:0 1px 3px rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.04);
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
+#root{display:flex;min-height:100vh}
+button{font-family:var(--font);cursor:pointer;border:none;outline:none}
+input,textarea,select{font-family:var(--font);outline:none}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-dark);border-radius:99px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,useCallback}=React;
+const v=n=>`var(${n})`;
+const store={
+  get:(k,d)=>{try{const val=localStorage.getItem(k);return val?JSON.parse(val):d;}catch{return d;}},
+  set:(k,val)=>{try{localStorage.setItem(k,JSON.stringify(val));}catch{}}
+};
+
+function useApi(baseUrl,apiKey){
+  const call=useCallback(async(method,path,body)=>{
+    const res=await fetch(`${baseUrl}${path}`,{method,headers:{'Content-Type':'application/json','x-api-key':apiKey},body:body?JSON.stringify(body):undefined});
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error||`HTTP ${res.status}`);
+    return data;
+  },[baseUrl,apiKey]);
+  return{get:p=>call('GET',p),post:(p,b)=>call('POST',p,b),put:(p,b)=>call('PUT',p,b),patch:(p,b)=>call('PATCH',p,b),del:p=>call('DELETE',p)};
+}
+
+function useToast(){
+  const[toasts,setToasts]=useState([]);
+  const add=(msg,type='success')=>{const id=Date.now();setToasts(p=>[...p.slice(-4),{id,msg,type}]);setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3500);};
+  return{toasts,toast:add};
+}
+
+function Toast({toasts}){
+  return(
+    <div style={{position:'fixed',bottom:24,right:24,zIndex:9999,display:'flex',flexDirection:'column',gap:8,pointerEvents:'none'}}>
+      {toasts.map(t=>(
+        <div key={t.id} style={{background:t.type==='error'?'#1a0a0a':t.type==='warn'?'#1a1200':'#0a1a0e',color:t.type==='error'?'#fca5a5':t.type==='warn'?'#fcd34d':'#86efac',border:`1px solid ${t.type==='error'?'#7f1d1d':t.type==='warn'?'#78350f':'#14532d'}`,borderRadius:v('--radius-sm'),padding:'10px 16px',fontSize:13,fontWeight:500,maxWidth:320,pointerEvents:'auto',animation:'slideUp .2s ease'}}>
+          {t.type==='error'?'✕ ':t.type==='warn'?'⚠ ':'✓ '}{t.msg}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const ICONS={
+  dashboard:'M4 6h7V4H4v2zm0 4h7V8H4v2zm0 4h7v-2H4v2zm9-8v2h7V6h-7zm0 4h7v-2h-7v2zm0 4h7v-2h-7v2z',
+  payments:'M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z',
+  chat:'M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z',
+  settings:'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z',
+  human:'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z',
+  responses:'M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z',
+  refresh:'M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z',
+  check:'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
+  close:'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
+  bot:'M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zM7 17v-2H6v-2.23C6.6 12.68 7 12 7 11.27V9h10v2.27c0 .73.4 1.41 1 1.5V15h-1v2H7zm2-6h2v2H9v-2zm4 0h2v2h-2v-2z',
+  logout:'M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z',
+  save:'M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z',
+  add:'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z',
+  trash:'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z',
+  edit:'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z',
+  tag:'M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z',
+};
+const Icon=({name,size=16})=><svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d={ICONS[name]||''}/></svg>;
+
+const STATUS_META={
+  pending_review:{label:'Menunggu',color:'#b45309',bg:'#fef3c7',dot:'#f59e0b'},
+  verified:{label:'Terverifikasi',color:'#166534',bg:'#dcfce7',dot:'#22c55e'},
+  rejected:{label:'Ditolak',color:'#991b1b',bg:'#fee2e2',dot:'#ef4444'},
+  wrong_account:{label:'Rek. Salah',color:'#7c2d12',bg:'#ffedd5',dot:'#f97316'},
+  unverified_account:{label:'Rek. Tidak Terbaca',color:'#1e40af',bg:'#dbeafe',dot:'#3b82f6'},
+};
+function StatusBadge({status}){
+  const m=STATUS_META[status]||{label:status,color:'#64748b',bg:'#f1f5f9',dot:'#94a3b8'};
+  return<span style={{display:'inline-flex',alignItems:'center',gap:5,background:m.bg,color:m.color,padding:'3px 10px',borderRadius:99,fontSize:12,fontWeight:600,whiteSpace:'nowrap'}}><span style={{width:6,height:6,borderRadius:'50%',background:m.dot,flexShrink:0}}/>{m.label}</span>;
+}
+
+function Toggle({value,onChange,label,desc}){
+  return(
+    <label style={{display:'flex',alignItems:'flex-start',gap:14,cursor:'pointer',padding:'14px 0',borderBottom:`1px solid ${v('--border')}`}}>
+      <div onClick={()=>onChange(!value)} style={{width:44,height:24,borderRadius:99,flexShrink:0,background:value?v('--green-500'):'#cbd5e1',position:'relative',transition:'background .2s',marginTop:1}}>
+        <div style={{position:'absolute',top:3,left:value?22:3,width:18,height:18,borderRadius:'50%',background:'#fff',transition:'left .2s',boxShadow:'0 1px 3px rgba(0,0,0,.2)'}}/>
+      </div>
+      <div><div style={{fontWeight:500,fontSize:14}}>{label}</div>{desc&&<div style={{fontSize:12,color:v('--text-3'),marginTop:2}}>{desc}</div>}</div>
+    </label>
+  );
+}
+
+const NAV=[
+  {id:'dashboard',label:'Dashboard',icon:'dashboard'},
+  {id:'payments',label:'Pembayaran',icon:'payments'},
+  {id:'chat',label:'Log Chat',icon:'chat'},
+  {id:'human',label:'Mode Admin',icon:'human'},
+  {id:'messages',label:'Pesan Bot',icon:'bot'},
+  {id:'responses',label:'Respons Bot',icon:'responses'},
+  {id:'spam',label:'Spam Filter',icon:'close'},
+  {id:'settings',label:'Pengaturan',icon:'settings'},
+];
+
+function Sidebar({active,onNav,onLogout,connected}){
+  return(
+    <aside style={{width:220,background:v('--green-800'),display:'flex',flexDirection:'column',height:'100vh',position:'sticky',top:0,flexShrink:0}}>
+      <div style={{padding:'24px 20px 16px',borderBottom:`1px solid ${v('--green-700')}`}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{width:36,height:36,borderRadius:10,background:v('--amber'),display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:800,color:v('--green-900')}}>B</div>
+          <div><div style={{fontWeight:700,fontSize:15,color:'#fff'}}>Bimba</div><div style={{fontSize:11,color:'rgba(255,255,255,.45)'}}>Admin Panel</div></div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:6,marginTop:12,background:'rgba(255,255,255,.06)',borderRadius:8,padding:'6px 10px'}}>
+          <div style={{width:7,height:7,borderRadius:'50%',background:connected?'#4ade80':'#f87171',flexShrink:0}}/>
+          <span style={{fontSize:11,color:'rgba(255,255,255,.6)'}}>{connected?'Terhubung ke server':'Belum terhubung'}</span>
+        </div>
+      </div>
+      <nav style={{flex:1,padding:'12px 10px',overflowY:'auto'}}>
+        {NAV.map(n=>(
+          <button key={n.id} onClick={()=>onNav(n.id)} style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:9,marginBottom:2,textAlign:'left',background:active===n.id?'rgba(245,158,11,.18)':'transparent',color:active===n.id?v('--amber'):'rgba(255,255,255,.6)',fontWeight:active===n.id?600:400,fontSize:13.5,transition:'all .15s'}}>
+            <Icon name={n.icon} size={16}/>{n.label}
+          </button>
+        ))}
+      </nav>
+      <div style={{padding:'12px 10px',borderTop:`1px solid ${v('--green-700')}`}}>
+        <button onClick={onLogout} style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:9,color:'rgba(255,255,255,.4)',fontSize:13,background:'transparent'}}>
+          <Icon name="logout" size={16}/>Keluar / Ganti Server
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function ConnectModal({onConnect}){
+  const[url,setUrl]=useState(store.get('bimba_url','http://localhost:3001'));
+  const[key,setKey]=useState(store.get('bimba_key',''));
+  const[loading,setLoading]=useState(false);
+  const[err,setErr]=useState('');
+  async function handleConnect(){
+    if(!url||!key){setErr('Isi semua field.');return;}
+    setLoading(true);setErr('');
+    try{
+      const res=await fetch(`${url}/health`,{headers:{'x-api-key':key}});
+      if(!res.ok)throw new Error(`Server merespons ${res.status}`);
+      store.set('bimba_url',url);store.set('bimba_key',key);onConnect(url,key);
+    }catch(e){setErr(`Gagal terhubung: ${e.message}`);}
+    finally{setLoading(false);}
+  }
+  const inp=(val,set,type='text',ph='')=><input value={val} onChange={e=>set(e.target.value)} type={type} placeholder={ph} style={{width:'100%',border:`1px solid ${v('--border')}`,borderRadius:v('--radius-sm'),padding:'9px 12px',fontSize:13,fontFamily:v('--mono'),background:v('--bg'),color:v('--text')}}/>;
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(15,20,18,.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}}>
+      <div style={{background:'#fff',borderRadius:v('--radius-lg'),padding:36,width:420,boxShadow:'0 24px 64px rgba(0,0,0,.18)'}}>
+        <div style={{width:52,height:52,borderRadius:14,background:v('--amber'),display:'flex',alignItems:'center',justifyContent:'center',fontSize:26,fontWeight:800,color:v('--green-900'),marginBottom:20}}>B</div>
+        <h2 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Bimba Admin Panel</h2>
+        <p style={{color:v('--text-2'),fontSize:13,marginBottom:24}}>Masukkan alamat server dan API key untuk terhubung.</p>
+        <label style={{fontSize:12,fontWeight:600,color:v('--text-2'),display:'block',marginBottom:6}}>URL SERVER CORE</label>
+        <div style={{marginBottom:16}}>{inp(url,setUrl,'text','http://localhost:3001')}</div>
+        <label style={{fontSize:12,fontWeight:600,color:v('--text-2'),display:'block',marginBottom:6}}>INTERNAL API KEY</label>
+        <div style={{marginBottom:20}}>{inp(key,setKey,'password','bimba-secret-key')}</div>
+        {err&&<p style={{color:v('--red'),fontSize:12,marginBottom:16}}>{err}</p>}
+        <button onClick={handleConnect} disabled={loading} style={{width:'100%',padding:11,background:v('--green-600'),color:'#fff',borderRadius:v('--radius-sm'),fontWeight:600,fontSize:14,opacity:loading?0.6:1}}>{loading?'Menghubungkan...':'Hubungkan →'}</button>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({label,value,sub,accent,icon}){
+  const C={amber:{bg:v('--amber-light'),color:v('--amber-dark')},red:{bg:v('--red-light'),color:v('--red')},blue:{bg:v('--blue-light'),color:v('--blue')},green:{bg:v('--green-50'),color:v('--green-500')}};
+  const c=C[accent]||C.green;
+  return(
+    <div style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),padding:'20px 22px',boxShadow:v('--shadow')}}>
+      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:12}}>
+        <span style={{fontSize:12,fontWeight:600,color:v('--text-3'),textTransform:'uppercase',letterSpacing:.5}}>{label}</span>
+        <div style={{width:32,height:32,borderRadius:8,background:c.bg,color:c.color,display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name={icon||'dashboard'} size={16}/></div>
+      </div>
+      <div style={{fontSize:32,fontWeight:700,lineHeight:1,marginBottom:4,color:v('--text')}}>{value??'—'}</div>
+      {sub&&<div style={{fontSize:12,color:v('--text-3')}}>{sub}</div>}
+    </div>
+  );
+}
+
+// Parse string reset Groq seperti "2m59.56s", "23h59m", "59.5s" → detik
+function parseGroqReset(str) {
+  if (!str) return null;
+  let total = 0;
+  const h = str.match(/(\d+)h/);
+  const m = str.match(/(\d+)m(?!s)/);
+  const s = str.match(/([\d.]+)s/);
+  if (h) total += parseInt(h[1]) * 3600;
+  if (m) total += parseInt(m[1]) * 60;
+  if (s) total += parseFloat(s[1]);
+  return Math.ceil(total);
+}
+
+// Format detik → "2m 59d" atau "45d"
+function fmtCountdown(sec) {
+  if (sec <= 0) return '0d';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h > 0) return `${h}j ${m}m`;
+  if (m > 0) return `${m}m ${s}d`;
+  return `${s}d`;
+}
+
+function useCountdown(resetStr) {
+  const [secs, setSecs] = useState(() => parseGroqReset(resetStr));
+  const startRef = React.useRef(Date.now());
+  useEffect(() => {
+    const initial = parseGroqReset(resetStr);
+    if (initial === null) { setSecs(null); return; }
+    startRef.current = Date.now();
+    const elapsed = Math.floor((Date.now() - startRef.current) / 1000);
+    setSecs(Math.max(0, initial - elapsed));
+    const id = setInterval(() => setSecs(p => p !== null ? Math.max(0, p - 1) : null), 1000);
+    return () => clearInterval(id);
+  }, [resetStr]);
+  return secs;
+}
+
+/**
+ * CountdownBadge — tampilkan countdown reset Groq.
+ * Saat countdown TPM mencapai 0, tampilkan estimasi reset penuh
+ * berdasarkan limitTokens karena TPM Groq reset setiap menit.
+ * Ini estimasi — nilai real baru diketahui saat ada OCR request berikutnya.
+ */
+function CountdownBadge({ resetStr, label, isTPM, limitTokens }) {
+  const secs = useCountdown(resetStr);
+  if (secs === null) return null;
+  const urgent = secs > 0 && secs < 60;
+  const isReset = secs <= 0;
+
+  // Untuk TPM: saat countdown habis, tampilkan estimasi sudah reset
+  const tpmResetMsg = isTPM && isReset && limitTokens
+    ? `✅ Estimasi reset (~${limitTokens.toLocaleString('id-ID')} token tersedia)`
+    : null;
+
+  return (
+    <div style={{fontSize:11,color:v('--text-3'),marginTop:4,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+      <span>{label}:</span>
+      {tpmResetMsg
+        ? <span style={{fontFamily:v('--mono'),fontWeight:600,color:v('--green-500'),background:v('--green-50'),padding:'1px 7px',borderRadius:99,fontSize:11}}>{tpmResetMsg}</span>
+        : <span style={{fontFamily:v('--mono'),fontWeight:600,color:urgent?v('--red'):isReset?v('--green-500'):v('--text-2'),background:urgent?v('--red-light'):isReset?v('--green-50'):v('--bg'),padding:'1px 7px',borderRadius:99,fontSize:11}}>
+            {isReset ? '✅ Sudah reset' : `⏱ ${fmtCountdown(secs)}`}
+          </span>
+      }
+      {isTPM && isReset && <span style={{fontSize:10,color:v('--text-3'),fontStyle:'italic'}}>(konfirmasi saat OCR berikutnya)</span>}
+    </div>
+  );
+}
+
+function PageDashboard({api,toast}){
+  const[stats,setStats]=useState(null);
+  const[health,setHealth]=useState(null);
+  const[healthDetail,setHealthDetail]=useState(null);
+  const[payments,setPayments]=useState([]);
+  const loadAll=useCallback(()=>{
+    api.get('/health').then(setHealth).catch(()=>{});
+    api.get('/api/stats').then(setStats).catch(()=>{});
+    api.get('/api/health-detail').then(setHealthDetail).catch(()=>{});
+    api.get('/api/payment-logs/detail?limit=5').then(d=>setPayments(d.rows||[])).catch(()=>{});
+  },[]);
+  useEffect(()=>{ loadAll(); },[loadAll]);
+  return(
+    <div>
+      <div style={{marginBottom:28}}><h1 style={{fontSize:22,fontWeight:700}}>Dashboard</h1><p style={{color:v('--text-3'),fontSize:13,marginTop:3}}>Ringkasan aktivitas bot administrasi Bimba</p></div>
+      {health&&<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,background:v('--green-50'),border:`1px solid ${v('--green-100')}`,borderRadius:v('--radius-sm'),padding:'10px 16px',marginBottom:24,fontSize:13}}>
+        <div style={{display:'flex',alignItems:'center',gap:8}}><span style={{width:8,height:8,borderRadius:'50%',background:'#22c55e',display:'inline-block'}}/><strong>Server aktif</strong><span style={{color:v('--text-3')}}> · Uptime {healthDetail?.server?.uptime_fmt||`${Math.floor(health.uptime/3600)}j ${Math.floor((health.uptime%3600)/60)}m`} · Database {health.db}{healthDetail?.database?.latency_ms!=null?` (${healthDetail.database.latency_ms}ms)`:''}</span></div>
+        <button onClick={loadAll} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 10px',background:'transparent',border:`1px solid ${v('--green-100')}`,borderRadius:6,fontSize:12,color:v('--green-500'),cursor:'pointer'}}><Icon name="refresh" size={12}/>Refresh</button>
+      </div>}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:14,marginBottom:28}}>
+        <StatCard label="Total Pembayaran" value={stats?.pembayaran?.total}        icon="payments"  accent="green"/>
+        <StatCard label="Menunggu Review"  value={stats?.pembayaran?.pending}       icon="refresh"   accent="amber" sub="Perlu diverifikasi"/>
+        <StatCard label="Terverifikasi"    value={stats?.pembayaran?.verified}      icon="check"     accent="green"/>
+        <StatCard label="Rekening Salah"   value={stats?.pembayaran?.wrong_account} icon="close"     accent="red"   sub="Butuh tindak lanjut"/>
+        <StatCard label="Admin Mode Aktif" value={stats?.human_mode_aktif}          icon="human"     accent="blue"  sub="Sesi percakapan aktif"/>
+        <StatCard label="Chat Hari Ini"    value={stats?.chat?.hari_ini}            icon="chat"      accent="green" sub="Pesan dalam 24 jam"/>
+      </div>
+            {/* Health Detail Panel */}
+      {healthDetail&&(
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14,marginBottom:28}}>
+
+          {/* Queue */}
+          <div style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),padding:'18px 20px',boxShadow:v('--shadow')}}>
+            <div style={{fontSize:12,fontWeight:600,color:v('--text-3'),textTransform:'uppercase',letterSpacing:.5,marginBottom:12}}>⚙️ OCR Queue</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <div style={{background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px'}}>
+                <div style={{fontSize:11,color:v('--text-3'),marginBottom:2}}>Antrian saat ini</div>
+                <div style={{fontSize:22,fontWeight:700,color:healthDetail.queue.size>0?v('--amber-dark'):v('--green-500')}}>{healthDetail.queue.size}</div>
+              </div>
+              <div style={{background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px'}}>
+                <div style={{fontSize:11,color:v('--text-3'),marginBottom:2}}>Status</div>
+                <div style={{fontSize:13,fontWeight:600,color:healthDetail.queue.running?v('--blue'):v('--text-3')}}>{healthDetail.queue.running?'⚡ Memproses':'✅ Idle'}</div>
+              </div>
+              <div style={{background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px'}}>
+                <div style={{fontSize:11,color:v('--text-3'),marginBottom:2}}>Diproses (sesi)</div>
+                <div style={{fontSize:18,fontWeight:700}}>{healthDetail.queue.processed_session}</div>
+              </div>
+              <div style={{background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px'}}>
+                <div style={{fontSize:11,color:v('--text-3'),marginBottom:2}}>Gagal (sesi)</div>
+                <div style={{fontSize:18,fontWeight:700,color:healthDetail.queue.failed_session>0?v('--red'):v('--text-3')}}>{healthDetail.queue.failed_session}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* OCR Performance */}
+          <div style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),padding:'18px 20px',boxShadow:v('--shadow')}}>
+            <div style={{fontSize:12,fontWeight:600,color:v('--text-3'),textTransform:'uppercase',letterSpacing:.5,marginBottom:12}}>📊 Performa OCR (24 jam)</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <div style={{background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px'}}>
+                <div style={{fontSize:11,color:v('--text-3'),marginBottom:2}}>Total gambar</div>
+                <div style={{fontSize:22,fontWeight:700}}>{healthDetail.ocr_today.total}</div>
+              </div>
+              <div style={{background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px'}}>
+                <div style={{fontSize:11,color:v('--text-3'),marginBottom:2}}>Rata-rata durasi</div>
+                <div style={{fontSize:18,fontWeight:700,color:v('--blue')}}>{healthDetail.ocr_today.avg_ms>0?`${healthDetail.ocr_today.avg_ms}ms`:'—'}</div>
+              </div>
+              <div style={{background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px'}}>
+                <div style={{fontSize:11,color:v('--text-3'),marginBottom:2}}>Tercepat</div>
+                <div style={{fontSize:14,fontWeight:600,color:v('--green-500')}}>{healthDetail.ocr_today.min_ms>0?`${healthDetail.ocr_today.min_ms}ms`:'—'}</div>
+              </div>
+              <div style={{background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px'}}>
+                <div style={{fontSize:11,color:v('--text-3'),marginBottom:2}}>Terlambat</div>
+                <div style={{fontSize:14,fontWeight:600,color:v('--amber-dark')}}>{healthDetail.ocr_today.max_ms>0?`${healthDetail.ocr_today.max_ms}ms`:'—'}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Groq Stats */}
+          {healthDetail.groq.active&&(
+            <div style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),padding:'18px 20px',boxShadow:v('--shadow')}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                <div style={{fontSize:12,fontWeight:600,color:v('--text-3'),textTransform:'uppercase',letterSpacing:.5}}>🟣 Groq API</div>
+                <span style={{fontSize:11,background:v('--green-50'),color:v('--green-600'),border:`1px solid ${v('--green-100')}`,borderRadius:99,padding:'2px 8px',fontWeight:600}}>Aktif</span>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                <div style={{background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px'}}>
+                  <div style={{fontSize:11,color:v('--text-3'),marginBottom:2}}>Request hari ini</div>
+                  <div style={{fontSize:18,fontWeight:700}}>{healthDetail.groq.requests_today}</div>
+                </div>
+                <div style={{background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px'}}>
+                  <div style={{fontSize:11,color:v('--text-3'),marginBottom:2}}>Token hari ini</div>
+                  <div style={{fontSize:18,fontWeight:700}}>{healthDetail.groq.tokens_today.toLocaleString('id-ID')}</div>
+                </div>
+                {healthDetail.groq.remaining_requests!=null&&<div style={{background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px',gridColumn:'1/-1'}}>
+                  <div style={{fontSize:11,color:v('--text-3'),marginBottom:6}}>Sisa Request Harian (RPD)</div>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{flex:1,height:6,background:'#e5e7eb',borderRadius:99,overflow:'hidden'}}>
+                      <div style={{height:'100%',borderRadius:99,background:healthDetail.groq.remaining_requests/healthDetail.groq.limit_requests>0.3?v('--green-500'):v('--red'),width:`${Math.round(healthDetail.groq.remaining_requests/healthDetail.groq.limit_requests*100)}%`,transition:'width .3s'}}/>
+                    </div>
+                    <span style={{fontSize:12,fontWeight:600,whiteSpace:'nowrap'}}>{healthDetail.groq.remaining_requests.toLocaleString('id-ID')} / {healthDetail.groq.limit_requests.toLocaleString('id-ID')}</span>
+                  </div>
+                                    <CountdownBadge resetStr={healthDetail.groq.reset_requests} label="Reset RPD dalam"/>
+                </div>}
+                {healthDetail.groq.remaining_tokens!=null&&<div style={{background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px',gridColumn:'1/-1'}}>
+                                    <div style={{fontSize:11,color:v('--text-3'),marginBottom:6}}>Sisa Token per Menit (TPM)</div>
+                                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                                      <div style={{flex:1,height:6,background:'#e5e7eb',borderRadius:99,overflow:'hidden'}}>
+                                        <div style={{height:'100%',borderRadius:99,background:healthDetail.groq.remaining_tokens/healthDetail.groq.limit_tokens>0.3?v('--blue'):v('--amber'),width:`${Math.round(healthDetail.groq.remaining_tokens/healthDetail.groq.limit_tokens*100)}%`,transition:'width .3s'}}/>
+                                      </div>
+                                      <span style={{fontSize:12,fontWeight:600,whiteSpace:'nowrap'}}>{healthDetail.groq.remaining_tokens.toLocaleString('id-ID')} / {healthDetail.groq.limit_tokens.toLocaleString('id-ID')}</span>
+                                    </div>
+                                    <CountdownBadge resetStr={healthDetail.groq.reset_tokens} label="Reset TPM dalam" isTPM={true} limitTokens={healthDetail.groq.limit_tokens}/>
+                </div>}
+              </div>
+              {healthDetail.groq.last_updated&&<div style={{fontSize:11,color:v('--text-3'),marginTop:8}}>Data dari request terakhir: {new Date(healthDetail.groq.last_updated).toLocaleTimeString('id-ID')}</div>}
+            </div>
+          )}
+
+          {/* Gemini Stats */}
+          {healthDetail.gemini.active&&(
+            <div style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),padding:'18px 20px',boxShadow:v('--shadow')}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                <div style={{fontSize:12,fontWeight:600,color:v('--text-3'),textTransform:'uppercase',letterSpacing:.5}}>🔵 Gemini API</div>
+                <span style={{fontSize:11,background:v('--blue-light'),color:v('--blue'),border:'1px solid #bfdbfe',borderRadius:99,padding:'2px 8px',fontWeight:600}}>Fallback</span>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                <div style={{background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px'}}>
+                  <div style={{fontSize:11,color:v('--text-3'),marginBottom:2}}>Request hari ini</div>
+                  <div style={{fontSize:18,fontWeight:700}}>{healthDetail.gemini.requests_today}</div>
+                </div>
+                <div style={{background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px'}}>
+                  <div style={{fontSize:11,color:v('--text-3'),marginBottom:2}}>Total token</div>
+                  <div style={{fontSize:18,fontWeight:700}}>{healthDetail.gemini.tokens_today.toLocaleString('id-ID')}</div>
+                </div>
+                <div style={{background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px'}}>
+                  <div style={{fontSize:11,color:v('--text-3'),marginBottom:2}}>Token prompt</div>
+                  <div style={{fontSize:14,fontWeight:600,color:v('--text-2')}}>{healthDetail.gemini.prompt_tokens_today.toLocaleString('id-ID')}</div>
+                </div>
+                <div style={{background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px'}}>
+                  <div style={{fontSize:11,color:v('--text-3'),marginBottom:2}}>Token output</div>
+                  <div style={{fontSize:14,fontWeight:600,color:v('--text-2')}}>{healthDetail.gemini.output_tokens_today.toLocaleString('id-ID')}</div>
+                </div>
+              </div>
+              <div style={{marginTop:8,fontSize:11,color:v('--text-3')}}>ℹ️ Sisa quota Gemini hanya tersedia di Google AI Studio</div>
+              {healthDetail.gemini.last_updated&&<div style={{fontSize:11,color:v('--text-3'),marginTop:4}}>Data dari request terakhir: {new Date(healthDetail.gemini.last_updated).toLocaleTimeString('id-ID')}</div>}
+            </div>
+          )}
+
+        </div>
+      )}
+
+      <div style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),overflow:'hidden'}}>
+        <div style={{padding:'16px 20px',borderBottom:`1px solid ${v('--border')}`}}><h2 style={{fontSize:14,fontWeight:600}}>Pembayaran Terbaru</h2></div>
+        <table style={{width:'100%',borderCollapse:'collapse'}}>
+          <thead><tr style={{background:v('--surface-2')}}>{['Wali Murid','Nominal','Bank','Status','Waktu'].map(h=><th key={h} style={{padding:'10px 16px',textAlign:'left',fontSize:11,fontWeight:600,color:v('--text-3'),textTransform:'uppercase',letterSpacing:.5}}>{h}</th>)}</tr></thead>
+          <tbody>
+            {payments.length===0&&<tr><td colSpan={5} style={{padding:24,textAlign:'center',color:v('--text-3')}}>Belum ada data</td></tr>}
+            {payments.map(p=><tr key={p.id} style={{borderTop:`1px solid ${v('--border')}`}}>
+              <td style={{padding:'12px 16px'}}><div style={{fontWeight:500,fontSize:13}}>{p.name}</div><div style={{fontSize:11,color:v('--text-3'),fontFamily:v('--mono')}}>{p.phone?.replace('@c.us','')}</div></td>
+              <td style={{padding:'12px 16px',fontFamily:v('--mono'),fontWeight:600,fontSize:13}}>{p.nominal_formatted||(p.nominal?`Rp ${Number(p.nominal).toLocaleString('id-ID')}`:'—')}</td>
+              <td style={{padding:'12px 16px',fontSize:13,color:v('--text-2')}}>{p.bank_pengirim||'—'}</td>
+              <td style={{padding:'12px 16px'}}><StatusBadge status={p.status}/></td>
+              <td style={{padding:'12px 16px',fontSize:12,color:v('--text-3')}}>{new Date(p.created_at).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</td>
+            </tr>)}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function PagePayments({api,toast}){
+  const[data,setData]=useState([]);
+  const[filter,setFilter]=useState('all');
+  const[loading,setLoading]=useState(false);
+  const[updating,setUpdating]=useState(null);
+  const load=useCallback(async()=>{
+    setLoading(true);
+    try{const q=filter!=='all'?`?status=${filter}&limit=100`:'?limit=100';const r=await api.get(`/api/payment-logs/detail${q}`);setData(r.rows||[]);}
+    catch(e){toast(e.message,'error');}finally{setLoading(false);}
+  },[filter]);
+  useEffect(()=>{load();},[load]);
+  async function updateStatus(id,status){setUpdating(id);try{await api.patch(`/api/payment-logs/${id}/status`,{status});toast(`Status → ${STATUS_META[status]?.label||status}`);load();}catch(e){toast(e.message,'error');}finally{setUpdating(null);}}
+  const filters=[{v:'all',l:'Semua'},{v:'pending_review',l:'Menunggu'},{v:'verified',l:'Terverifikasi'},{v:'wrong_account',l:'Rek. Salah'},{v:'rejected',l:'Ditolak'}];
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:20}}>
+        <div><h1 style={{fontSize:22,fontWeight:700}}>Log Pembayaran</h1><p style={{color:v('--text-3'),fontSize:13,marginTop:3}}>Verifikasi bukti transfer dari wali murid</p></div>
+        <button onClick={load} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius-sm'),fontSize:13,color:v('--text-2'),fontWeight:500}}><Icon name="refresh" size={14}/> Refresh</button>
+      </div>
+      <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap'}}>
+        {filters.map(f=><button key={f.v} onClick={()=>setFilter(f.v)} style={{padding:'6px 14px',borderRadius:99,fontSize:12,fontWeight:600,background:filter===f.v?v('--green-800'):v('--surface'),color:filter===f.v?'#fff':v('--text-2'),border:`1px solid ${filter===f.v?v('--green-800'):v('--border')}`}}>{f.l}</button>)}
+      </div>
+      <div style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),overflow:'auto'}}>
+        {loading?<div style={{padding:40,textAlign:'center',color:v('--text-3')}}>Memuat...</div>:(
+          <table style={{width:'100%',borderCollapse:'collapse',minWidth:900}}>
+            <thead><tr style={{background:v('--surface-2')}}>{['#','Wali Murid','Pengirim','Nominal','Bank','Referensi','Tgl','Status','Aksi'].map(h=><th key={h} style={{padding:'10px 14px',textAlign:'left',fontSize:11,fontWeight:600,color:v('--text-3'),textTransform:'uppercase',letterSpacing:.4,whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
+            <tbody>
+              {data.length===0&&<tr><td colSpan={9} style={{padding:32,textAlign:'center',color:v('--text-3')}}>Tidak ada data</td></tr>}
+              {data.map(p=>(
+                <tr key={p.id} style={{borderTop:`1px solid ${v('--border')}`,transition:'background .1s'}} onMouseEnter={e=>e.currentTarget.style.background=v('--bg')} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <td style={{padding:'10px 14px',fontSize:12,color:v('--text-3'),fontFamily:v('--mono')}}>{p.id}</td>
+                  <td style={{padding:'10px 14px'}}><div style={{fontWeight:500,fontSize:13}}>{p.name}</div><div style={{fontSize:11,color:v('--text-3'),fontFamily:v('--mono')}}>{p.phone?.replace('@c.us','')}</div></td>
+                  <td style={{padding:'10px 14px',fontSize:13,fontWeight:500}}>{p.nama_pengirim||'—'}</td>
+                  <td style={{padding:'10px 14px',fontFamily:v('--mono'),fontWeight:600,fontSize:13}}>{p.nominal_formatted||(p.nominal?`Rp ${Number(p.nominal).toLocaleString('id-ID')}`:'—')}</td>
+                  <td style={{padding:'10px 14px',fontSize:13,color:v('--text-2')}}>{p.bank_pengirim||'—'}</td>
+                  <td style={{padding:'10px 14px',fontFamily:v('--mono'),fontSize:11,color:v('--text-3'),maxWidth:120,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={p.no_referensi}>{p.no_referensi||'—'}</td>
+                  <td style={{padding:'10px 14px',fontSize:12,color:v('--text-3'),whiteSpace:'nowrap'}}>{p.tanggal||'—'}</td>
+                  <td style={{padding:'10px 14px'}}><StatusBadge status={p.status}/></td>
+                  <td style={{padding:'10px 14px'}}>
+                    {(p.status==='pending_review'||p.status==='unverified_account')?(
+                      <div style={{display:'flex',gap:6}}>
+                        <button onClick={()=>updateStatus(p.id,'verified')} disabled={updating===p.id} style={{padding:'5px 10px',background:v('--green-50'),color:v('--green-500'),border:`1px solid ${v('--green-100')}`,borderRadius:6,fontSize:12,fontWeight:600}}>✓ Verifikasi</button>
+                        <button onClick={()=>updateStatus(p.id,'rejected')} disabled={updating===p.id} style={{padding:'5px 10px',background:v('--red-light'),color:v('--red'),border:'1px solid #fecaca',borderRadius:6,fontSize:12,fontWeight:600}}>✕ Tolak</button>
+                      </div>
+                    ):<span style={{fontSize:12,color:v('--text-3')}}>—</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PageChat({api,toast}){
+  const[logs,setLogs]=useState([]);
+  const[search,setSearch]=useState('');
+  const[loading,setLoading]=useState(false);
+  useEffect(()=>{setLoading(true);api.get('/api/chat-logs').then(setLogs).catch(e=>toast(e.message,'error')).finally(()=>setLoading(false));},[]);
+  const filtered=logs.filter(l=>!search||l.name?.toLowerCase().includes(search.toLowerCase())||l.phone?.includes(search)||l.message_in?.toLowerCase().includes(search.toLowerCase()));
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:20}}>
+        <div><h1 style={{fontSize:22,fontWeight:700}}>Log Percakapan</h1><p style={{color:v('--text-3'),fontSize:13,marginTop:3}}>Riwayat pesan masuk dari wali murid</p></div>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari nama / nomor / pesan..." style={{width:240,border:`1px solid ${v('--border')}`,borderRadius:v('--radius-sm'),padding:'8px 12px',fontSize:13,background:v('--surface'),color:v('--text')}}/>
+      </div>
+      <div style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),overflow:'auto'}}>
+        {loading?<div style={{padding:40,textAlign:'center',color:v('--text-3')}}>Memuat...</div>:(
+          <table style={{width:'100%',borderCollapse:'collapse',minWidth:700}}>
+            <thead><tr style={{background:v('--surface-2')}}>{['Wali Murid','Tipe','Pesan Masuk','Konteks','Waktu'].map(h=><th key={h} style={{padding:'10px 14px',textAlign:'left',fontSize:11,fontWeight:600,color:v('--text-3'),textTransform:'uppercase',letterSpacing:.4}}>{h}</th>)}</tr></thead>
+            <tbody>
+              {filtered.length===0&&<tr><td colSpan={5} style={{padding:32,textAlign:'center',color:v('--text-3')}}>Tidak ada data</td></tr>}
+              {filtered.map(l=><tr key={l.id} style={{borderTop:`1px solid ${v('--border')}`}}>
+                <td style={{padding:'10px 14px'}}><div style={{fontWeight:500,fontSize:13}}>{l.name}</div><div style={{fontSize:11,color:v('--text-3'),fontFamily:v('--mono')}}>{l.phone?.replace('@c.us','')}</div></td>
+                <td style={{padding:'10px 14px'}}><span style={{background:l.type==='image'?v('--blue-light'):v('--bg'),color:l.type==='image'?v('--blue'):v('--text-3'),padding:'2px 8px',borderRadius:6,fontSize:11,fontWeight:600}}>{l.type}</span></td>
+                <td style={{padding:'10px 14px',maxWidth:240,fontSize:13,color:v('--text-2'),overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={l.message_in}>{l.message_in}</td>
+                <td style={{padding:'10px 14px'}}><span style={{background:v('--bg'),color:v('--text-3'),padding:'2px 8px',borderRadius:6,fontSize:11}}>{l.context}</span></td>
+                <td style={{padding:'10px 14px',fontSize:12,color:v('--text-3'),whiteSpace:'nowrap'}}>{new Date(l.created_at).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</td>
+              </tr>)}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PageHuman({api,toast}){
+  const[active,setActive]=useState([]);
+  const[loading,setLoading]=useState(false);
+  const[exiting,setExiting]=useState(null);
+  const load=useCallback(async()=>{setLoading(true);try{setActive(await api.get('/api/human-active'));}catch(e){toast(e.message,'error');}finally{setLoading(false);}});
+  useEffect(()=>{load();},[]);
+  async function exitMode(phone){setExiting(phone);try{const r=await api.post('/api/exit-human-mode',{targetNumber:phone});if(r.wasActive){toast('Sesi admin berakhir. Bot aktif kembali.');load();}else toast('Nomor tidak dalam mode admin.','warn');}catch(e){toast(e.message,'error');}finally{setExiting(null);}}
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:20}}>
+        <div><h1 style={{fontSize:22,fontWeight:700}}>Mode Admin Aktif</h1><p style={{color:v('--text-3'),fontSize:13,marginTop:3}}>Sesi percakapan yang sedang ditangani admin secara manual</p></div>
+        <button onClick={load} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius-sm'),fontSize:13,color:v('--text-2'),fontWeight:500}}><Icon name="refresh" size={14}/> Refresh</button>
+      </div>
+      {loading?<div style={{padding:40,textAlign:'center',color:v('--text-3')}}>Memuat...</div>:active.length===0?(
+        <div style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),padding:48,textAlign:'center'}}>
+          <div style={{fontSize:32,marginBottom:12}}>✅</div>
+          <div style={{fontWeight:600,marginBottom:4}}>Tidak ada sesi aktif</div>
+          <div style={{fontSize:13,color:v('--text-3')}}>Semua wali murid sedang dilayani bot secara otomatis</div>
+        </div>
+      ):(
+        <div style={{display:'grid',gap:12}}>
+          {active.map(u=>(
+            <div key={u.phone} style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),padding:'18px 20px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16}}>
+              <div>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}><span style={{width:8,height:8,borderRadius:'50%',background:'#3b82f6',display:'inline-block',animation:'pulse 2s infinite'}}/><strong style={{fontSize:14}}>{u.last_name||'Wali Murid'}</strong><span style={{fontFamily:v('--mono'),fontSize:12,color:v('--text-3')}}>{u.phone?.replace('@c.us','')}</span></div>
+                {u.last_message&&<div style={{fontSize:13,color:v('--text-2'),maxWidth:480,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>Pesan terakhir: "{u.last_message}"</div>}
+                <div style={{fontSize:11,color:v('--text-3'),marginTop:4}}>Mode aktif sejak: {new Date(u.updated_at).toLocaleString('id-ID')}</div>
+              </div>
+              <button onClick={()=>exitMode(u.phone)} disabled={exiting===u.phone} style={{padding:'8px 16px',background:v('--red-light'),color:v('--red'),border:'1px solid #fecaca',borderRadius:v('--radius-sm'),fontSize:13,fontWeight:600,whiteSpace:'nowrap',flexShrink:0}}>{exiting===u.phone?'Memproses...':'Akhiri Sesi'}</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── PageResponses — FUNGSIONAL LENGKAP ───────────────────────
+function PageResponses({api,toast}){
+  const[items,setItems]=useState([]);
+  const[loading,setLoading]=useState(false);
+  const[saving,setSaving]=useState(false);
+  const[deleting,setDeleting]=useState(null);
+  const[form,setForm]=useState({keywords:'',response:'',active:true});
+  const[editId,setEditId]=useState(null);
+  const[showForm,setShowForm]=useState(false);
+
+  const load=useCallback(async()=>{
+    setLoading(true);
+    try{setItems(await api.get('/api/keyword-responses'));}
+    catch(e){toast(e.message,'error');}
+    finally{setLoading(false);}
+  },[]);
+  useEffect(()=>{load();},[load]);
+
+  function startAdd(){setForm({keywords:'',response:'',active:true});setEditId(null);setShowForm(true);}
+  function startEdit(item){setForm({keywords:item.keywords.join(', '),response:item.response,active:item.active});setEditId(item.id);setShowForm(true);}
+
+  async function handleSave(){
+    if(!form.keywords.trim()||!form.response.trim()){toast('Kata kunci dan balasan wajib diisi.','warn');return;}
+    setSaving(true);
+    try{
+      const body={keywords:form.keywords.split(',').map(k=>k.trim().toLowerCase()).filter(Boolean),response:form.response.trim(),active:form.active};
+      if(editId)await api.put(`/api/keyword-responses/${editId}`,body);
+      else await api.post('/api/keyword-responses',body);
+      toast(editId?'Respons diperbarui!':'Respons ditambahkan!');
+      setShowForm(false);setEditId(null);load();
+    }catch(e){toast(e.message,'error');}
+    finally{setSaving(false);}
+  }
+
+  async function handleDelete(id){
+    if(!confirm('Hapus respons ini?'))return;
+    setDeleting(id);
+    try{await api.del(`/api/keyword-responses/${id}`);toast('Respons dihapus.');load();}
+    catch(e){toast(e.message,'error');}
+    finally{setDeleting(null);}
+  }
+
+  async function toggleActive(item){
+    try{await api.put(`/api/keyword-responses/${item.id}`,{keywords:item.keywords,response:item.response,active:!item.active});load();}
+    catch(e){toast(e.message,'error');}
+  }
+
+  const IS={width:'100%',border:`1px solid ${v('--border')}`,borderRadius:v('--radius-sm'),padding:'9px 12px',fontSize:13,background:v('--bg'),color:v('--text')};
+  const LS={fontSize:12,fontWeight:600,color:v('--text-2'),display:'block',marginBottom:4};
+
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:20}}>
+        <div><h1 style={{fontSize:22,fontWeight:700}}>Respons Bot</h1><p style={{color:v('--text-3'),fontSize:13,marginTop:3}}>Balasan otomatis berdasarkan kata kunci pesan wali murid</p></div>
+        <button onClick={startAdd} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',background:v('--green-700'),color:'#fff',borderRadius:v('--radius-sm'),fontSize:13,fontWeight:600}}><Icon name="add" size={14}/> Tambah Respons</button>
+      </div>
+
+      {showForm&&(
+        <div style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),marginBottom:16,overflow:'hidden'}}>
+          <div style={{padding:'14px 20px',borderBottom:`1px solid ${v('--border')}`,background:v('--surface-2'),display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div style={{fontWeight:600,fontSize:14}}>{editId?'Edit Respons':'Tambah Respons Baru'}</div>
+            <button onClick={()=>setShowForm(false)} style={{background:'transparent',color:v('--text-3'),display:'flex',alignItems:'center'}}><Icon name="close" size={18}/></button>
+          </div>
+          <div style={{padding:20}}>
+            <div style={{marginBottom:14}}>
+              <label style={LS}>KATA KUNCI</label>
+              <p style={{fontSize:12,color:v('--text-3'),marginBottom:6}}>Pisahkan dengan koma. Contoh: <code style={{background:v('--bg'),padding:'1px 6px',borderRadius:4}}>tagihan, bayar, cicilan</code></p>
+              <input value={form.keywords} onChange={e=>setForm(p=>({...p,keywords:e.target.value}))} placeholder="kata kunci 1, kata kunci 2, ..." style={IS}/>
+            </div>
+            <div style={{marginBottom:14}}>
+              <label style={LS}>BALASAN BOT</label>
+              <p style={{fontSize:12,color:v('--text-3'),marginBottom:6}}>Gunakan <code style={{background:v('--bg'),padding:'1px 6px',borderRadius:4}}>{'{nama}'}</code> untuk nama wali murid. Gunakan *teks* untuk bold di WA.</p>
+              <textarea value={form.response} onChange={e=>setForm(p=>({...p,response:e.target.value}))} rows={4} placeholder="Halo {nama}! ..." style={{...IS,resize:'vertical',lineHeight:1.6}}/>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16,cursor:'pointer'}} onClick={()=>setForm(p=>({...p,active:!p.active}))}>
+              <div style={{width:36,height:20,borderRadius:99,background:form.active?v('--green-500'):'#cbd5e1',position:'relative',transition:'background .2s',flexShrink:0}}>
+                <div style={{position:'absolute',top:2,left:form.active?18:2,width:16,height:16,borderRadius:'50%',background:'#fff',transition:'left .2s'}}/>
+              </div>
+              <span style={{fontSize:13,fontWeight:500,userSelect:'none'}}>Aktif</span>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={handleSave} disabled={saving} style={{padding:'9px 20px',background:v('--green-700'),color:'#fff',borderRadius:v('--radius-sm'),fontSize:13,fontWeight:600,display:'flex',alignItems:'center',gap:6,opacity:saving?0.7:1}}><Icon name="save" size={14}/>{saving?'Menyimpan...':editId?'Simpan Perubahan':'Tambah'}</button>
+              <button onClick={()=>{setShowForm(false);setEditId(null);}} style={{padding:'9px 16px',background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius-sm'),fontSize:13,color:v('--text-2')}}>Batal</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:v('--radius-sm'),padding:'12px 16px',marginBottom:16,fontSize:13,color:'#1e40af'}}>
+        <strong>ℹ️ Cara kerja:</strong> Bot mengecek apakah pesan wali murid mengandung salah satu kata kunci. Jika cocok, bot membalas dengan teks yang ditentukan. Prioritas: menu utama (1/2/3) → kata kunci → fallback menu.
+      </div>
+
+      {loading?<div style={{padding:40,textAlign:'center',color:v('--text-3')}}>Memuat...</div>:items.length===0&&!showForm?(
+        <div style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),padding:48,textAlign:'center'}}>
+          <div style={{fontSize:32,marginBottom:12}}>💬</div>
+          <div style={{fontWeight:600,marginBottom:4}}>Belum ada respons kustom</div>
+          <div style={{fontSize:13,color:v('--text-3'),marginBottom:20}}>Tambahkan balasan otomatis berdasarkan kata kunci</div>
+          <button onClick={startAdd} style={{padding:'9px 20px',background:v('--green-700'),color:'#fff',borderRadius:v('--radius-sm'),fontSize:13,fontWeight:600}}>Tambah Pertama</button>
+        </div>
+      ):(
+        <div style={{display:'grid',gap:10}}>
+          {items.map(item=>(
+            <div key={item.id} style={{background:v('--surface'),border:`1px solid ${item.active?v('--border'):'#e5e7eb'}`,borderRadius:v('--radius'),padding:'16px 20px',opacity:item.active?1:0.55,transition:'opacity .2s'}}>
+              <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:10}}>
+                    {item.keywords.map(k=>(
+                      <span key={k} style={{display:'inline-flex',alignItems:'center',gap:4,background:v('--green-50'),color:v('--green-600'),border:`1px solid ${v('--green-100')}`,borderRadius:99,padding:'2px 10px',fontSize:12,fontWeight:600}}>
+                        <Icon name="tag" size={10}/>{k}
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{fontSize:13,color:v('--text-2'),background:v('--bg'),borderRadius:v('--radius-sm'),padding:'8px 12px',fontFamily:v('--mono'),whiteSpace:'pre-wrap',wordBreak:'break-word',maxHeight:72,overflow:'hidden'}}>
+                    {item.response}
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:6,flexShrink:0}}>
+                  <button onClick={()=>toggleActive(item)} style={{padding:'5px 10px',background:item.active?v('--amber-light'):v('--green-50'),color:item.active?v('--amber-dark'):v('--green-500'),border:`1px solid ${item.active?'#fde68a':v('--green-100')}`,borderRadius:6,fontSize:12,fontWeight:600}}>{item.active?'Nonaktifkan':'Aktifkan'}</button>
+                  <button onClick={()=>startEdit(item)} style={{padding:'5px 10px',background:'#eff6ff',color:'#3b82f6',border:'1px solid #bfdbfe',borderRadius:6,fontSize:12,fontWeight:600,display:'flex',alignItems:'center',gap:4}}><Icon name="edit" size={12}/>Edit</button>
+                  <button onClick={()=>handleDelete(item.id)} disabled={deleting===item.id} style={{padding:'5px 10px',background:v('--red-light'),color:v('--red'),border:'1px solid #fecaca',borderRadius:6,fontSize:12,fontWeight:600,display:'flex',alignItems:'center',gap:4}}><Icon name="trash" size={12}/>{deleting===item.id?'...':'Hapus'}</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PageSpam({api,toast}){
+  const[list,setList]=useState([]);
+  const[loading,setLoading]=useState(false);
+  const[unbanning,setUnbanning]=useState(null);
+
+  const load=useCallback(async()=>{
+    setLoading(true);
+    try{setList(await api.get('/api/spam-list'));}
+    catch(e){toast(e.message,'error');}
+    finally{setLoading(false);}
+  },[]);
+  useEffect(()=>{load();},[load]);
+
+  async function unban(phone){
+    setUnbanning(phone);
+    try{
+      const r=await api.post('/api/spam-unban',{phone});
+      toast(r.wasBanned?`Ban untuk ${phone.replace('@c.us','')} dicabut.`:`${phone.replace('@c.us','')} tidak sedang dibanned.`,'success');
+      load();
+    }catch(e){toast(e.message,'error');}
+    finally{setUnbanning(null);}
+  }
+
+  function BanCountdown({sisaDetik}){
+    const[secs,setSecs]=useState(sisaDetik);
+    useEffect(()=>{
+      if(secs<=0)return;
+      const id=setInterval(()=>setSecs(p=>Math.max(0,p-1)),1000);
+      return()=>clearInterval(id);
+    },[]);
+    if(secs<=0)return<span style={{color:v('--green-500'),fontWeight:600}}>Selesai</span>;
+    const m=Math.floor(secs/60),s=secs%60;
+    const urgent=secs<60;
+    return<span style={{fontFamily:v('--mono'),fontWeight:600,color:urgent?v('--red'):v('--amber-dark'),background:urgent?v('--red-light'):v('--amber-light'),padding:'2px 8px',borderRadius:99,fontSize:12}}>⏱ {m>0?`${m}m ${s}d`:`${s}d`}</span>;
+  }
+
+  const banned=list.filter(x=>x.banned);
+  const others=list.filter(x=>!x.banned);
+
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:20}}>
+        <div>
+          <h1 style={{fontSize:22,fontWeight:700}}>Spam Filter</h1>
+          <p style={{color:v('--text-3'),fontSize:13,marginTop:3}}>Monitor dan kelola nomor yang terkena rate limit bot</p>
+        </div>
+        <button onClick={load} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius-sm'),fontSize:13,color:v('--text-2'),fontWeight:500}}><Icon name="refresh" size={14}/> Refresh</button>
+      </div>
+
+      {/* Info rules */}
+      <div style={{background:v('--amber-light'),border:`1px solid #fde68a`,borderRadius:v('--radius-sm'),padding:'12px 16px',marginBottom:20,fontSize:13,color:v('--amber-dark')}}>
+        <strong>⚙️ Aturan aktif:</strong> Maks <strong>15 pesan/menit</strong> dan <strong>5 gambar/menit</strong> per nomor. Ban otomatis selama <strong>5 menit</strong>.
+      </div>
+
+      {loading?<div style={{padding:40,textAlign:'center',color:v('--text-3')}}>Memuat...</div>:(
+        <div style={{display:'grid',gap:16}}>
+
+          {/* Sedang dibanned */}
+          <div style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),overflow:'hidden'}}>
+            <div style={{padding:'14px 20px',borderBottom:`1px solid ${v('--border')}`,background:'#fff5f5',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <span style={{width:8,height:8,borderRadius:'50%',background:banned.length>0?v('--red'):'#d1d5db',display:'inline-block'}}/>
+                <span style={{fontWeight:600,fontSize:14}}>Sedang Dibanned</span>
+                {banned.length>0&&<span style={{background:v('--red-light'),color:v('--red'),borderRadius:99,padding:'1px 8px',fontSize:12,fontWeight:700}}>{banned.length}</span>}
+              </div>
+            </div>
+            {banned.length===0?(
+              <div style={{padding:32,textAlign:'center',color:v('--text-3'),fontSize:13}}>✅ Tidak ada nomor yang sedang dibanned</div>
+            ):(
+              <table style={{width:'100%',borderCollapse:'collapse'}}>
+                <thead><tr style={{background:v('--surface-2')}}>{['Nomor','Pesan','Gambar','Sisa Ban','Aksi'].map(h=><th key={h} style={{padding:'10px 16px',textAlign:'left',fontSize:11,fontWeight:600,color:v('--text-3'),textTransform:'uppercase',letterSpacing:.4}}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {banned.map(item=>(
+                    <tr key={item.phone} style={{borderTop:`1px solid ${v('--border')}`}}>
+                      <td style={{padding:'12px 16px',fontFamily:v('--mono'),fontSize:13,fontWeight:500}}>{item.phone.replace('@c.us','')}</td>
+                      <td style={{padding:'12px 16px',fontSize:13}}><span style={{background:v('--bg'),borderRadius:6,padding:'2px 8px',fontWeight:600}}>{item.msg_count}</span></td>
+                      <td style={{padding:'12px 16px',fontSize:13}}><span style={{background:v('--bg'),borderRadius:6,padding:'2px 8px',fontWeight:600}}>{item.img_count}</span></td>
+                      <td style={{padding:'12px 16px'}}><BanCountdown sisaDetik={item.sisa_detik}/></td>
+                      <td style={{padding:'12px 16px'}}>
+                        <button onClick={()=>unban(item.phone)} disabled={unbanning===item.phone} style={{padding:'5px 14px',background:v('--green-50'),color:v('--green-500'),border:`1px solid ${v('--green-100')}`,borderRadius:6,fontSize:12,fontWeight:600}}>
+                          {unbanning===item.phone?'Memproses...':'✓ Cabut Ban'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Riwayat aktif (tidak dibanned tapi pernah tercatat) */}
+          {others.length>0&&(
+            <div style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),overflow:'hidden'}}>
+              <div style={{padding:'14px 20px',borderBottom:`1px solid ${v('--border')}`,background:v('--surface-2')}}>
+                <span style={{fontWeight:600,fontSize:14}}>Riwayat Aktif Sesi Ini</span>
+                <span style={{fontSize:12,color:v('--text-3'),marginLeft:8}}>Nomor yang pernah tercatat tapi tidak sedang dibanned</span>
+              </div>
+              <table style={{width:'100%',borderCollapse:'collapse'}}>
+                <thead><tr style={{background:v('--surface-2')}}>{['Nomor','Pesan','Gambar','Status'].map(h=><th key={h} style={{padding:'10px 16px',textAlign:'left',fontSize:11,fontWeight:600,color:v('--text-3'),textTransform:'uppercase',letterSpacing:.4}}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {others.map(item=>(
+                    <tr key={item.phone} style={{borderTop:`1px solid ${v('--border')}`}}>
+                      <td style={{padding:'12px 16px',fontFamily:v('--mono'),fontSize:13}}>{item.phone.replace('@c.us','')}</td>
+                      <td style={{padding:'12px 16px',fontSize:13}}>{item.msg_count}</td>
+                      <td style={{padding:'12px 16px',fontSize:13}}>{item.img_count}</td>
+                      <td style={{padding:'12px 16px'}}><span style={{background:v('--green-50'),color:v('--green-500'),border:`1px solid ${v('--green-100')}`,borderRadius:99,padding:'2px 10px',fontSize:12,fontWeight:600}}>Normal</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {list.length===0&&!loading&&(
+            <div style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),padding:48,textAlign:'center'}}>
+              <div style={{fontSize:32,marginBottom:12}}>🛡️</div>
+              <div style={{fontWeight:600,marginBottom:4}}>Belum ada aktivitas spam</div>
+              <div style={{fontSize:13,color:v('--text-3')}}>Data akan muncul saat ada pesan masuk ke bot</div>
+            </div>
+          )}
+
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PageSettings({api,toast}){
+  const[config,setConfig]=useState({});
+  const[loading,setLoading]=useState(false);
+  const[saving,setSaving]=useState(false);
+  useEffect(()=>{setLoading(true);api.get('/api/bot-config').then(d=>setConfig(d||{})).catch(e=>toast(e.message,'error')).finally(()=>setLoading(false));},[]);
+  function setC(key,val){setConfig(p=>({...p,[key]:val}));}
+  async function save(keys){setSaving(true);try{const body={};for(const k of keys)body[k]=config[k]??'';await api.put('/api/bot-config',body);toast('Pengaturan tersimpan!');}catch(e){toast(e.message,'error');}finally{setSaving(false);}}
+  if(loading)return<div style={{padding:40,textAlign:'center',color:v('--text-3')}}>Memuat pengaturan...</div>;
+  const Field=({label,desc,k,mono,area,rows=3})=>(
+    <div style={{marginBottom:16}}>
+      <label style={{fontSize:12,fontWeight:600,color:v('--text-2'),display:'block',marginBottom:4}}>{label}</label>
+      {desc&&<p style={{fontSize:12,color:v('--text-3'),marginBottom:6}}>{desc}</p>}
+      {area?<textarea value={config[k]||''} onChange={e=>setC(k,e.target.value)} rows={rows} style={{width:'100%',border:`1px solid ${v('--border')}`,borderRadius:v('--radius-sm'),padding:'9px 12px',fontSize:13,fontFamily:mono?v('--mono'):v('--font'),background:v('--bg'),color:v('--text'),resize:'vertical',lineHeight:1.6}}/>
+           :<input value={config[k]||''} onChange={e=>setC(k,e.target.value)} style={{width:'100%',border:`1px solid ${v('--border')}`,borderRadius:v('--radius-sm'),padding:'9px 12px',fontSize:13,fontFamily:mono?v('--mono'):v('--font'),background:v('--bg'),color:v('--text')}}/>}
+    </div>
+  );
+  const Section=({title,desc,children,saveKeys})=>(
+    <div style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),marginBottom:16,overflow:'hidden'}}>
+      <div style={{padding:'16px 20px',borderBottom:`1px solid ${v('--border')}`,background:v('--surface-2')}}><div style={{fontWeight:600,fontSize:14}}>{title}</div>{desc&&<div style={{fontSize:12,color:v('--text-3'),marginTop:2}}>{desc}</div>}</div>
+      <div style={{padding:20}}>
+        {children}
+        <button onClick={()=>save(saveKeys)} disabled={saving} style={{marginTop:8,padding:'9px 20px',background:v('--green-700'),color:'#fff',borderRadius:v('--radius-sm'),fontSize:13,fontWeight:600,display:'flex',alignItems:'center',gap:6,opacity:saving?0.7:1}}><Icon name="save" size={14}/>{saving?'Menyimpan...':'Simpan Perubahan'}</button>
+      </div>
+    </div>
+  );
+  return(
+    <div>
+      <div style={{marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700}}>Pengaturan Bot</h1><p style={{color:v('--text-3'),fontSize:13,marginTop:3}}>Ubah konfigurasi dan pesan bot tanpa menyentuh kode</p></div>
+      <Section title="Informasi Rekening" desc="Ditampilkan saat wali murid meminta info pembayaran" saveKeys={['BIMBA_NAMA_BANK','BIMBA_NO_REKENING','BIMBA_NAMA_REKENING']}>
+        <Field k="BIMBA_NAMA_BANK" label="NAMA BANK" mono/><Field k="BIMBA_NO_REKENING" label="NOMOR REKENING" mono/><Field k="BIMBA_NAMA_REKENING" label="NAMA PEMILIK REKENING"/>
+      </Section>
+      <Section title="Nomor Admin" desc="Nomor yang menerima notifikasi bukti transfer dan mode admin" saveKeys={['ADMIN_WA_NUMBER']}>
+        <Field k="ADMIN_WA_NUMBER" label="NOMOR WHATSAPP ADMIN" desc="Format: 628xxxxxx@c.us" mono/>
+      </Section>
+      <Section title="Pesan Bot" desc="Teks balasan yang dikirim bot. Gunakan {nama} untuk menyisipkan nama wali murid" saveKeys={['MSG_WELCOME','MSG_INFO_PEMBAYARAN','MSG_REQUEST_TF','MSG_HUMAN_MODE']}>
+        <Field k="MSG_WELCOME" label="PESAN SAMBUTAN / MENU" area rows={5} desc="Kosongkan untuk menggunakan pesan default. Gunakan *teks* untuk bold di WA."/>
+        <Field k="MSG_INFO_PEMBAYARAN" label="PESAN INFO PEMBAYARAN" area rows={6} desc="Kosongkan untuk menggunakan pesan default."/>
+        <Field k="MSG_REQUEST_TF" label="PESAN MINTA BUKTI TRANSFER" area rows={3} desc="Ditampilkan saat wali murid memilih opsi kirim bukti transfer."/>
+        <Field k="MSG_HUMAN_MODE" label="PESAN SAAT TERHUBUNG KE ADMIN" area rows={3}/>
+      </Section>
+      <Section title="Pengaturan Fitur" desc="Aktifkan atau nonaktifkan fitur keamanan bot" saveKeys={['VALIDASI_REKENING','CEK_DUPLIKAT','HUMAN_MODE_TIMEOUT']}>
+        <Toggle value={(config['VALIDASI_REKENING']??'true')!=='false'} onChange={val=>setC('VALIDASI_REKENING',val.toString())} label="Validasi Rekening Tujuan" desc="Periksa apakah nomor rekening pada bukti transfer sesuai dengan rekening Bimba."/>
+        <Toggle value={(config['CEK_DUPLIKAT']??'true')!=='false'} onChange={val=>setC('CEK_DUPLIKAT',val.toString())} label="Cek Duplikat Bukti Transfer" desc="Cegah wali murid mengirim bukti transfer yang sama lebih dari satu kali."/>
+        <div style={{marginTop:16}}>
+          <label style={{fontSize:12,fontWeight:600,color:v('--text-2'),display:'block',marginBottom:4}}>TIMEOUT MODE ADMIN (menit)</label>
+          <p style={{fontSize:12,color:v('--text-3'),marginBottom:6}}>Berapa menit sebelum bot otomatis aktif kembali jika admin tidak merespons.</p>
+          <input type="number" min={1} max={60} value={parseInt(config['HUMAN_MODE_TIMEOUT']||'10')} onChange={e=>setC('HUMAN_MODE_TIMEOUT',e.target.value)} style={{width:100,border:`1px solid ${v('--border')}`,borderRadius:v('--radius-sm'),padding:'9px 12px',fontSize:13,background:v('--bg'),color:v('--text')}}/>
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+
+// ── PageMessages — Editor Pesan Bot ─────────────────────────
+const MSG_SCHEMA = [
+  { section:'menu',       key:'sambutan',          label:'Pesan Sambutan / Menu Utama',         vars:['{nama}'] },
+  { section:'menu',       key:'tidak_dikenal',      label:'Pesan Tidak Dikenal (Fallback)',       vars:['{nama}'] },
+  { section:'opsi_1',     key:'info_pembayaran',    label:'Info Pembayaran (Opsi 1)',             vars:['{bank}','{nama_rekening}','{no_rekening}'] },
+  { section:'opsi_2',     key:'minta_bukti',        label:'Minta Bukti Transfer (Opsi 2)',        vars:[] },
+  { section:'opsi_2',     key:'teks_saat_waiting',  label:'Teks Diterima saat Menunggu Gambar',  vars:[] },
+  { section:'opsi_2',     key:'gambar_terlalu_besar',label:'Gambar Terlalu Besar',               vars:[] },
+  { section:'opsi_2',     key:'gagal_download',     label:'Gagal Download Media',                vars:[] },
+  { section:'opsi_2',     key:'bukan_gambar',       label:'Media Bukan Gambar',                  vars:[] },
+  { section:'opsi_2',     key:'bukan_bukti_transfer',label:'Gambar Bukan Bukti Transfer',        vars:['{deskripsi}'] },
+  { section:'opsi_2',     key:'ocr_gagal',          label:'OCR / AI Gagal Membaca',              vars:[] },
+  { section:'opsi_2',     key:'duplikat',           label:'Bukti Transfer Duplikat',             vars:[] },
+  { section:'opsi_3',     key:'menghubungkan',      label:'Menghubungkan ke Admin (Opsi 3)',     vars:[] },
+  { section:'pembayaran', key:'konfirmasi',         label:'Konfirmasi Bukti Transfer Diterima',  vars:['{emoji}','{nama}','{pengirim}','{nominal}','{bank}','{tanggal}','{referensi}','{status}'] },
+  { section:'pembayaran', key:'rekening_salah',     label:'Rekening Tujuan Tidak Sesuai',        vars:['{bank}','{no_rekening}','{nama_rekening}'] },
+  { section:'admin',      key:'notif_transfer',     label:'Notif Admin — Bukti Transfer Masuk',  vars:['{nama}','{nomor}','{nominal}','{pengirim}','{referensi}','{status}','{confidence}'] },
+  { section:'admin',      key:'notif_rekening_salah',label:'Notif Admin — Rekening Salah',       vars:['{nama}','{nomor}','{rekening_ocr}','{rekening_bimba}','{nominal}'] },
+  { section:'admin',      key:'notif_human_mode',   label:'Notif Admin — Wali Murid Minta Admin',vars:['{nama}','{nomor}'] },
+  { section:'admin',      key:'sesi_berakhir',      label:'Pesan Sesi Admin Berakhir (Timeout)', vars:['{nama}'] },
+  { section:'admin',      key:'sesi_selesai',       label:'Pesan Sesi Admin Selesai Manual',     vars:[] },
+  { section:'spam',       key:'terlalu_banyak_pesan',label:'Pesan Spam / Rate Limit',            vars:[] },
+];
+
+const SECTION_LABELS = {
+  menu:'🏠 Menu Utama', opsi_1:'1️⃣ Info Pembayaran', opsi_2:'2️⃣ Bukti Transfer',
+  opsi_3:'3️⃣ Hubungi Admin', pembayaran:'💳 Konfirmasi Pembayaran',
+  admin:'🔔 Notifikasi Admin', spam:'🚫 Spam Filter',
+};
+
+function PageMessages({ api, toast }) {
+  const [msgs,    setMsgs]    = useState({});
+  const [draft,   setDraft]   = useState({});
+  const [loading, setLoading] = useState(false);
+  const [saving,  setSaving]  = useState(null);
+  const [active,  setActive]  = useState(null);
+  const [kwItems, setKwItems] = useState([]);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      api.get('/api/messages'),
+      api.get('/api/keyword-responses')
+    ])
+      .then(([msgData, kwData]) => {
+        setMsgs(msgData);
+        setDraft(JSON.parse(JSON.stringify(msgData)));
+        setKwItems(kwData || []);
+      })
+      .catch(e => toast(e.message, 'error'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  function getDraft(section, key) { return draft?.[section]?.[key] ?? ''; }
+  function setDraftVal(section, key, val) {
+    setDraft(p => ({ ...p, [section]: { ...(p[section]||{}), [key]: val } }));
+  }
+  function isDirty(section, key) { return getDraft(section, key) !== (msgs?.[section]?.[key] ?? ''); }
+
+  async function saveOne(section, key) {
+    setSaving(`${section}.${key}`);
+    try {
+      const updated = JSON.parse(JSON.stringify(msgs));
+      if (!updated[section]) updated[section] = {};
+      updated[section][key] = getDraft(section, key);
+      await api.put('/api/messages', updated);
+      setMsgs(JSON.parse(JSON.stringify(updated)));
+      toast('Pesan disimpan!');
+    } catch(e) { toast(e.message, 'error'); }
+    finally { setSaving(null); }
+  }
+
+  async function resetOne(section, key) {
+    setDraftVal(section, key, msgs?.[section]?.[key] ?? '');
+  }
+
+  const sections = [...new Set(MSG_SCHEMA.map(m => m.section))];
+
+  if (loading) return <div style={{padding:40,textAlign:'center',color:v('--text-3')}}>Memuat pesan...</div>;
+
+  return (
+    <div style={{display:'flex',gap:20,alignItems:'flex-start'}}>
+      {/* Sidebar section list */}
+      <div style={{width:200,flexShrink:0,position:'sticky',top:0}}>
+        <div style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),overflow:'hidden'}}>
+          <div style={{padding:'12px 14px',borderBottom:`1px solid ${v('--border')}`,fontSize:12,fontWeight:600,color:v('--text-3'),textTransform:'uppercase',letterSpacing:.5}}>Kategori</div>
+          {sections.map(s => {
+            const dirtyCount = MSG_SCHEMA.filter(m => m.section === s && isDirty(m.section, m.key)).length;
+            return (
+              <button key={s} onClick={() => setActive(s===active?null:s)} style={{width:'100%',textAlign:'left',padding:'10px 14px',background:active===s?v('--green-50'):'transparent',color:active===s?v('--green-600'):v('--text-2'),fontWeight:active===s?600:400,fontSize:13,borderBottom:`1px solid ${v('--border')}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span>{SECTION_LABELS[s]||s}</span>
+                {dirtyCount>0 && <span style={{background:v('--amber'),color:v('--green-900'),borderRadius:99,padding:'1px 7px',fontSize:11,fontWeight:700}}>{dirtyCount}</span>}
+              </button>
+            );
+          })}
+          {/* Kategori dinamis dari keyword responses */}
+          {kwItems.length > 0 && (
+            <button onClick={() => setActive(active==='__keywords__'?null:'__keywords__')} style={{width:'100%',textAlign:'left',padding:'10px 14px',background:active==='__keywords__'?v('--green-50'):'transparent',color:active==='__keywords__'?v('--green-600'):v('--text-2'),fontWeight:active==='__keywords__'?600:400,fontSize:13,borderBottom:`1px solid ${v('--border')}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <span>💬 Respons Kustom</span>
+              <span style={{background:v('--bg'),color:v('--text-3'),borderRadius:99,padding:'1px 7px',fontSize:11}}>{kwItems.length}</span>
+            </button>
+          )}
+        </div>
+        <div style={{marginTop:10,fontSize:12,color:v('--text-3'),padding:'0 4px',lineHeight:1.6}}>
+          Klik kategori untuk filter. Tombol <strong>Simpan</strong> per pesan — perubahan berlaku langsung tanpa restart server.
+        </div>
+      </div>
+
+      {/* Editor area */}
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{marginBottom:20}}>
+          <h1 style={{fontSize:22,fontWeight:700}}>Pesan Bot</h1>
+          <p style={{color:v('--text-3'),fontSize:13,marginTop:3}}>Edit semua teks balasan bot. Disimpan ke <code style={{background:v('--bg'),padding:'1px 6px',borderRadius:4,fontFamily:v('--mono')}}>messages.json</code> dan berlaku langsung.</p>
+        </div>
+
+        <div style={{display:'grid',gap:12}}>
+          {MSG_SCHEMA.filter(m => !active || m.section === active).map(({ section, key, label, vars }) => {
+            const val     = getDraft(section, key);
+            const dirty   = isDirty(section, key);
+            const savingThis = saving === `${section}.${key}`;
+            return (
+              <div key={`${section}.${key}`} style={{background:v('--surface'),border:`1px solid ${dirty?v('--amber-dark'):v('--border')}`,borderRadius:v('--radius'),overflow:'hidden',transition:'border-color .2s'}}>
+                <div style={{padding:'12px 16px',borderBottom:`1px solid ${v('--border')}`,background:v('--surface-2'),display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
+                  <div>
+                    <div style={{fontWeight:600,fontSize:13}}>{label}</div>
+                    <div style={{fontSize:11,color:v('--text-3'),fontFamily:v('--mono'),marginTop:2}}>{section}.{key}</div>
+                  </div>
+                  <div style={{display:'flex',gap:6,flexShrink:0,alignItems:'center'}}>
+                    {dirty && <span style={{fontSize:11,color:v('--amber-dark'),fontWeight:600}}>● Belum disimpan</span>}
+                    {dirty && <button onClick={() => resetOne(section, key)} style={{padding:'4px 10px',background:v('--bg'),border:`1px solid ${v('--border')}`,borderRadius:6,fontSize:12,color:v('--text-2')}}>Reset</button>}
+                    <button onClick={() => saveOne(section, key)} disabled={savingThis||!dirty} style={{padding:'4px 12px',background:dirty?v('--green-700'):'#e5e7eb',color:dirty?'#fff':v('--text-3'),border:'none',borderRadius:6,fontSize:12,fontWeight:600,opacity:savingThis?.7:1}}>{savingThis?'Menyimpan...':'Simpan'}</button>
+                  </div>
+                </div>
+                <div style={{padding:14}}>
+                  {vars.length > 0 && (
+                    <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+                      {vars.map(vr => (
+                        <span key={vr} style={{fontFamily:v('--mono'),fontSize:11,background:v('--blue-light'),color:v('--blue'),border:'1px solid #bfdbfe',borderRadius:99,padding:'2px 8px',cursor:'pointer'}}
+                          onClick={() => setDraftVal(section, key, val + vr)}
+                          title="Klik untuk sisipkan ke teks">{vr}</span>
+                      ))}
+                      <span style={{fontSize:11,color:v('--text-3'),alignSelf:'center'}}>← klik untuk sisipkan variabel</span>
+                    </div>
+                  )}
+                  <textarea
+                    value={val}
+                    onChange={e => setDraftVal(section, key, e.target.value)}
+                    rows={Math.max(3, val.split('\n').length + 1)}
+                    style={{width:'100%',border:`1px solid ${v('--border')}`,borderRadius:v('--radius-sm'),padding:'9px 12px',fontSize:13,fontFamily:v('--mono'),background:v('--bg'),color:v('--text'),resize:'vertical',lineHeight:1.6}}
+                  />
+                </div>
+              </div>
+            );
+          })}
+          {active === '__keywords__' && kwItems.map(item => (
+            <div key={item.id} style={{background:v('--surface'),border:`1px solid ${v('--border')}`,borderRadius:v('--radius'),overflow:'hidden'}}>
+              <div style={{padding:'12px 16px',borderBottom:`1px solid ${v('--border')}`,background:v('--surface-2'),display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div>
+                  <div style={{fontWeight:600,fontSize:13}}>{item.keywords.join(', ')}</div>
+                  <div style={{fontSize:11,color:v('--text-3'),marginTop:2}}>{item.active ? '✅ Aktif' : '⏸ Nonaktif'}</div>
+                </div>
+                <span style={{fontSize:12,color:v('--text-3')}}>Edit di halaman Respons Bot</span>
+              </div>
+              <div style={{padding:14,fontFamily:v('--mono'),fontSize:13,color:v('--text-2'),background:v('--bg'),whiteSpace:'pre-wrap',wordBreak:'break-word'}}>
+                {item.response}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function App(){
+  const[page,setPage]=useState('dashboard');
+  const[baseUrl,setBaseUrl]=useState(()=>store.get('bimba_url',''));
+  const[apiKey,setApiKey]=useState(()=>store.get('bimba_key',''));
+  const[connected,setConnected]=useState(false);
+  const{toasts,toast}=useToast();
+  const api=useApi(baseUrl,apiKey);
+  useEffect(()=>{if(baseUrl&&apiKey)api.get('/health').then(()=>setConnected(true)).catch(()=>setConnected(false));},[baseUrl,apiKey]);
+  function handleConnect(url,key){setBaseUrl(url);setApiKey(key);setConnected(true);}
+  function handleLogout(){setConnected(false);setBaseUrl('');setApiKey('');store.set('bimba_url','');store.set('bimba_key','');}
+  const pages={dashboard:PageDashboard,payments:PagePayments,chat:PageChat,human:PageHuman,messages:PageMessages,responses:PageResponses,spam:PageSpam,settings:PageSettings};
+  const PageComponent=pages[page]||PageDashboard;
+  return(
+    <>
+      <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}`}</style>
+      {(!baseUrl||!apiKey)&&<ConnectModal onConnect={handleConnect}/>}
+      <Sidebar active={page} onNav={setPage} onLogout={handleLogout} connected={connected}/>
+      <main style={{flex:1,padding:'32px 36px',overflowY:'auto',maxWidth:1100}}><PageComponent api={api} toast={toast}/></main>
+      <Toast toasts={toasts}/>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
+<!-- placeholder -->

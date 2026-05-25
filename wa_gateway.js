@@ -17,6 +17,16 @@ let adminRawId = ADMIN_NUMBER_ENV || null;
 const app = express();
 app.use(bodyParser.json());
 
+// ── MIDDLEWARE AUTH ───────────────────────────────────────────────────────────
+function requireApiKey(req, res, next) {
+    const key = req.headers['x-api-key'];
+    if (!key || key !== process.env.INTERNAL_API_KEY) {
+        console.warn(`[GATEWAY] ⛔ Akses ditolak ke ${req.path} — API key salah atau kosong.`);
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
+}
+
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
@@ -135,7 +145,7 @@ client.on('message', async (msg) => {
     try {
         const response = await axios.post(CORE_SERVICE_URL, payload, {
             timeout: 60000,
-            headers: { 'x-api-key': process.env.INTERNAL_API_KEY || 'bimba-secret-key' }
+            headers: { 'x-api-key': process.env.INTERNAL_API_KEY}
         });
 
         if (response.data?.reply) {
@@ -170,7 +180,7 @@ client.on('message_create', async msg => {
     if (exitMatch) {
         const targetPhone = `${exitMatch[1].trim().replace(/@\S+$/, '')}@c.us`;
         try {
-            const res = await axios.post('http://127.0.0.1:3001/api/exit-human-mode', { targetNumber: targetPhone }, { headers: { 'x-api-key': process.env.INTERNAL_API_KEY || 'bimba-secret-key' } });
+            const res = await axios.post('http://127.0.0.1:3001/api/exit-human-mode', { targetNumber: targetPhone }, { headers: { 'x-api-key': process.env.INTERNAL_API_KEY} });
             const ok  = res.data?.wasActive
                 ? `✅ Human mode untuk ${targetPhone} dinonaktifkan. Bot aktif kembali.`
                 : `ℹ️ Nomor ${targetPhone} tidak sedang dalam human mode.`;
@@ -185,20 +195,29 @@ client.on('message_create', async msg => {
     const rawTo      = msg._data?.to || msg.to || '';
     const syncTarget = `${rawTo.split('@')[0]}@c.us`;
     try {
-        const modeRes = await axios.get(`http://127.0.0.1:3001/api/user-mode/${encodeURIComponent(syncTarget)}`, { headers: { 'x-api-key': process.env.INTERNAL_API_KEY || 'bimba-secret-key' } });
+        const modeRes = await axios.get(`http://127.0.0.1:3001/api/user-mode/${encodeURIComponent(syncTarget)}`, { headers: { 'x-api-key': process.env.INTERNAL_API_KEY} });
         if (modeRes.data?.mode !== 'human') return;
     } catch (_) {
         return;
     }
 
     try {
-        await axios.post('http://127.0.0.1:3001/api/admin-sync', { targetNumber: syncTarget }, { headers: { 'x-api-key': process.env.INTERNAL_API_KEY || 'bimba-secret-key' } });
+        await axios.post('http://127.0.0.1:3001/api/admin-sync', { targetNumber: syncTarget }, { headers: { 'x-api-key': process.env.INTERNAL_API_KEY} });
     } catch (_) {}
 });
 
 // ── ENDPOINT PUSH (kirim pesan dari core ke WA) ───────────────────────────────
 
-app.post('/send-direct', async (req, res) => {
+app.get('/health', (req, res) => {
+    const info = client.info;
+    res.json({
+        status:  info ? 'connected' : 'disconnected',
+        wid:     info?.wid?._serialized || null,
+        uptime:  Math.floor(process.uptime()),
+    });
+});
+
+app.post('/send-direct', requireApiKey, async (req, res) => {
     try {
         const { to, message } = req.body;
         if (!to || !message) {
@@ -221,6 +240,15 @@ app.post('/send-direct', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ── GRACEFUL SHUTDOWN ────────────────────────────────────────────────────────
+async function shutdown(signal) {
+    console.log(`[SHUTDOWN] ${signal} diterima, menutup WA client...`);
+    try { await client.destroy(); console.log('[SHUTDOWN] WA client ditutup.'); } catch (_) {}
+    process.exit(0);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
 
 client.initialize();
 

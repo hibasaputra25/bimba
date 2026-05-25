@@ -1,0 +1,36 @@
+{
+  "menu": {
+    "sambutan": "Halo, *{nama}*! 👋 Selamat datang di *Bot Administrasi Bimba*.\n\nSaya bisa membantu kamu dengan:\n\n1️⃣ *Info Pembayaran* — nomor rekening & cara bayar\n2️⃣ *Kirim Bukti Transfer* — kirim foto/screenshot bukti TF\n3️⃣ *Hubungi Admin* — terhubung langsung ke admin Bimba\n4️⃣ *test*\n\nBalas dengan angka *1*, *2*, atau *3*.\n\n_Ketik *menu* kapan saja untuk kembali ke sini._",
+    "tidak_dikenal": "Maaf {nama}, saya tidak mengerti pesan kamu. 😅\n\nKetik *menu* untuk melihat pilihan yang tersedia."
+  },
+  "opsi_1": {
+    "info_pembayaran": "💳 *Informasi Pembayaran Bimba*\n\nSilakan transfer ke rekening berikut:\n\n🏦 Bank      : *{bank}*\n💼 Atas Nama : *{nama_rekening}*\n🔢 No. Rek   : *{no_rekening}*\n\nSetelah transfer, kirim bukti transfer (foto/screenshot) ke nomor ini. Bot akan langsung memverifikasi dan mengkonfirmasi pembayaran kamu. ✅"
+  },
+  "opsi_2": {
+    "minta_bukti": "📎 *Kirim Bukti Transfer*\n\nSilakan kirim foto atau screenshot bukti transfer kamu sekarang.\n\nPastikan gambar jelas dan terbaca ya! ✅\n\n_Bot akan langsung membaca dan mengkonfirmasi pembayaran secara otomatis._",
+    "teks_saat_waiting": "Untuk konfirmasi pembayaran, silakan kirim *foto atau screenshot* bukti transfer kamu ya, bukan teks. 📸",
+    "gambar_terlalu_besar": "⚠️ Maaf, ukuran gambar terlalu besar.\n\nCoba kirim screenshot langsung dari aplikasi m-banking kamu.",
+    "gagal_download": "Maaf, gagal mengunduh gambar kamu. Coba kirim ulang sekali lagi ya. 🙏",
+    "bukan_gambar": "Maaf, saya hanya bisa memproses gambar (foto/screenshot). 📸",
+    "bukan_bukti_transfer": "📸 Saya menerima gambar, tapi sepertinya ini bukan bukti transfer.\n\n_(Terdeteksi: {deskripsi})_\n\nJika kamu ingin mengirim bukti pembayaran, kirim foto/screenshot struk atau riwayat transfer dari m-banking kamu. 🏦",
+    "ocr_gagal": "Maaf, sistem sedang tidak bisa membaca gambar saat ini. 😔\n\nCoba lagi sebentar, atau hubungi admin Bimba langsung.",
+    "duplikat": "ℹ️ Bukti transfer ini sudah pernah dikirimkan sebelumnya dan sedang dalam proses verifikasi.\n\nJika ada pertanyaan, silakan hubungi admin Bimba langsung. 🙏"
+  },
+  "opsi_3": {
+    "menghubungkan": "🙋 Menghubungkan kamu ke *Admin Bimba*...\n\nMohon tunggu sebentar. Admin akan segera membalas pesan kamu.\n\n_Jika tidak ada respons dalam 10 menit, bot akan aktif kembali._"
+  },
+  "pembayaran": {
+    "konfirmasi": "{emoji} *Bukti Transfer Diterima!*\n\nTerima kasih, *{nama}*! Kami telah menerima bukti pembayaran kamu.\n\n📋 *Detail Transaksi:*\n├ Pengirim      : {pengirim}\n├ Nominal       : *{nominal}*\n├ Bank          : {bank}\n├ Tanggal       : {tanggal}\n├ No. Referensi : {referensi}\n└ Status        : *{status}*\n\n✅ Pembayaran akan diverifikasi oleh admin Bimba dalam waktu dekat.\n\n_Harap simpan bukti transfer ini sebagai arsip._",
+    "rekening_salah": "⚠️ *Perhatian!*\n\nBerdasarkan bukti transfer yang kamu kirim, nomor rekening tujuan *tidak sesuai* dengan rekening Bimba.\n\n🔢 Rekening Bimba yang benar:\n*{bank}* — *{no_rekening}*\na/n *{nama_rekening}*\n\nJika ini adalah kesalahan, silakan hubungi admin Bimba segera. 🙏"
+  },
+  "admin": {
+    "notif_transfer": "🔔 *[NOTIF ADMIN BIMBA]*\n\nAda bukti transfer masuk!\n\n👤 Wali Murid : {nama}\n📱 Nomor      : {nomor}\n💰 Nominal    : *{nominal}*\n👤 Pengirim   : {pengirim}\n📄 Ref        : {referensi}\n✅ Status     : {status}\n🎯 Confidence : {confidence}%\n\n_Verifikasi dan konfirmasi pembayaran di sistem administrasi._",
+    "notif_rekening_salah": "⚠️ *[ALERT REKENING SALAH]*\n\n*{nama}* ({nomor}) mengirim bukti TF ke rekening yang *tidak sesuai*.\n\n📄 Rekening di bukti : {rekening_ocr}\n✅ Rekening Bimba    : {rekening_bimba}\n💰 Nominal           : {nominal}\n\n_Harap hubungi wali murid untuk klarifikasi._",
+    "notif_human_mode": "🔔 *[NOTIF ADMIN BIMBA]*\n\n*{nama}* ({nomor}) ingin bicara dengan admin.\n\nBalas pesan mereka langsung dari HP ini.",
+    "sesi_berakhir": "⚠️ *Sesi Admin Berakhir*\n\nWaktu sesi habis. Bot aktif kembali untuk melayani {nama}.",
+    "sesi_selesai": "✅ *Sesi Admin Selesai*\nAdmin Bimba telah menutup sesi percakapan ini.\n\nKamu sekarang terhubung kembali ke bot.\n\nKetik *menu* untuk melihat pilihan."
+  },
+  "spam": {
+    "terlalu_banyak_pesan": "⏸️ *Terlalu banyak pesan dalam waktu singkat.*\n\nSilakan tunggu beberapa menit sebelum mengirim pesan lagi."
+  }
+}
